@@ -32,6 +32,8 @@ namespace FluidHTN
 
         IFactory Factory { get; set; }
 
+        IPlannerContext PlannerContext { get; }
+
         /// <summary>
         ///     The Method Traversal Record is used while decomposing a domain and
         ///     records the valid decomposition indices as we go through our

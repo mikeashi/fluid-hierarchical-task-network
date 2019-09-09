@@ -14,74 +14,6 @@ namespace FluidHTN
     /// <typeparam name="T"></typeparam>
     public class Planner<T> where T : IContext
     {
-        // ========================================================= FIELDS
-
-        private ITask _currentTask;
-        private readonly Queue<ITask> _plan = new Queue<ITask>();
-
-        // ========================================================= FIELDS
-        public TaskStatus LastStatus { get; protected set; }
-
-        // ========================================================= CALLBACKS
-
-        /// <summary>
-        ///		OnNewPlan(newPlan) is called when we found a new plan, and there is no
-        ///		old plan to replace.
-        /// </summary>
-        public Action<Queue<ITask>> OnNewPlan = null;
-
-        /// <summary>
-        ///		OnReplacePlan(oldPlan, currentTask, newPlan) is called when we're about to replace the
-        ///		current plan with a new plan.
-        /// </summary>
-        public Action<Queue<ITask>, ITask, Queue<ITask>> OnReplacePlan = null;
-
-        /// <summary>
-        ///		OnNewTask(task) is called after we popped a new task off the current plan.
-        /// </summary>
-        public Action<ITask> OnNewTask = null;
-
-        /// <summary>
-        ///		OnNewTaskConditionFailed(task, failedCondition) is called when we failed to
-        ///		validate a condition on a new task.
-        /// </summary>
-        public Action<ITask, ICondition> OnNewTaskConditionFailed = null;
-
-        /// <summary>
-        ///		OnStopCurrentTask(task) is called when the currently running task was stopped
-        ///		forcefully.
-        /// </summary>
-        public Action<IPrimitiveTask> OnStopCurrentTask = null;
-
-        /// <summary>
-        ///		OnCurrentTaskCompletedSuccessfully(task) is called when the currently running task
-        ///		completes successfully, and before its effects are applied.
-        /// </summary>
-        public Action<IPrimitiveTask> OnCurrentTaskCompletedSuccessfully = null;
-
-        /// <summary>
-        ///		OnApplyEffect(effect) is called for each effect of the type PlanAndExecute on a
-        ///		completed task.
-        /// </summary>
-        public Action<IEffect> OnApplyEffect = null;
-
-        /// <summary>
-        ///		OnCurrentTaskFailed(task) is called when the currently running task fails to complete.
-        /// </summary>
-        public Action<IPrimitiveTask> OnCurrentTaskFailed = null;
-
-        /// <summary>
-        ///		OnCurrentTaskContinues(task) is called every tick that a currently running task
-        ///		needs to continue.
-        /// </summary>
-        public Action<IPrimitiveTask> OnCurrentTaskContinues = null;
-
-        /// <summary>
-        ///		OnCurrentTaskExecutingConditionFailed(task, condition) is called if an Executing Condition
-        ///		fails. The Executing Conditions are checked before every call to task.Operator.Update(...).
-        /// </summary>
-        public Action<IPrimitiveTask, ICondition> OnCurrentTaskExecutingConditionFailed = null;
-
         // ========================================================= TICK PLAN
 
         /// <summary>
@@ -103,7 +35,7 @@ namespace FluidHTN
             bool isTryingToReplacePlan = false;
             // Check whether state has changed or the current plan has finished running.
             // and if so, try to find a new plan.
-            if (_currentTask == null && (_plan.Count == 0) || ctx.IsDirty)
+            if (ctx.PlannerContext.CurrentTask == null && (ctx.PlannerContext.Plan.Count == 0) || ctx.IsDirty)
             {
                 Queue<PartialPlanEntry> lastPartialPlanQueue = null;
 
@@ -141,26 +73,26 @@ namespace FluidHTN
                 }
 
                 decompositionStatus = domain.FindPlan(ctx, out var newPlan);
-                isTryingToReplacePlan = _plan.Count > 0;
+                isTryingToReplacePlan = ctx.PlannerContext.Plan.Count > 0;
                 if (decompositionStatus == DecompositionStatus.Succeeded || decompositionStatus == DecompositionStatus.Partial)
                 {
-                    if (OnReplacePlan != null && (_plan.Count > 0 || _currentTask != null))
+                    if (ctx.PlannerContext.OnReplacePlan != null && (ctx.PlannerContext.Plan.Count > 0 || ctx.PlannerContext.CurrentTask != null))
                     {
-                        OnReplacePlan.Invoke(_plan, _currentTask, newPlan);
+                        ctx.PlannerContext.OnReplacePlan.Invoke(ctx.PlannerContext.Plan, ctx.PlannerContext.CurrentTask, newPlan);
                     }
-                    else if (OnNewPlan != null && _plan.Count == 0)
+                    else if (ctx.PlannerContext.OnNewPlan != null && ctx.PlannerContext.Plan.Count == 0)
                     {
-                        OnNewPlan.Invoke(newPlan);
+                        ctx.PlannerContext.OnNewPlan.Invoke(newPlan);
                     }
 
-                    _plan.Clear();
-                    while (newPlan.Count > 0) _plan.Enqueue(newPlan.Dequeue());
+                    ctx.PlannerContext.Plan.Clear();
+                    while (newPlan.Count > 0) ctx.PlannerContext.Plan.Enqueue(newPlan.Dequeue());
 
-                    if (_currentTask != null && _currentTask is IPrimitiveTask t)
+                    if (ctx.PlannerContext.CurrentTask != null && ctx.PlannerContext.CurrentTask is IPrimitiveTask t)
                     {
-                        OnStopCurrentTask?.Invoke(t);
+                        ctx.PlannerContext.OnStopCurrentTask?.Invoke(t);
                         t.Stop(ctx);
-                        _currentTask = null;
+                        ctx.PlannerContext.CurrentTask = null;
                     }
 
                     // Copy the MTR into our LastMTR to represent the current plan's decomposition record
@@ -203,20 +135,20 @@ namespace FluidHTN
                 }
             }
 
-            if (_currentTask == null && _plan.Count > 0)
+            if (ctx.PlannerContext.CurrentTask == null && ctx.PlannerContext.Plan.Count > 0)
             {
-                _currentTask = _plan.Dequeue();
-                if (_currentTask != null)
+                ctx.PlannerContext.CurrentTask = ctx.PlannerContext.Plan.Dequeue();
+                if (ctx.PlannerContext.CurrentTask != null)
                 {
-                    OnNewTask?.Invoke(_currentTask);
-                    foreach (var condition in _currentTask.Conditions)
+                    ctx.PlannerContext.OnNewTask?.Invoke(ctx.PlannerContext.CurrentTask);
+                    foreach (var condition in ctx.PlannerContext.CurrentTask.Conditions)
                         // If a condition failed, then the plan failed to progress! A replan is required.
                         if (condition.IsValid(ctx) == false)
                         {
-                            OnNewTaskConditionFailed?.Invoke(_currentTask, condition);
+                            ctx.PlannerContext.OnNewTaskConditionFailed?.Invoke(ctx.PlannerContext.CurrentTask, condition);
 
-                            _currentTask = null;
-                            _plan.Clear();
+                            ctx.PlannerContext.CurrentTask = null;
+                            ctx.PlannerContext.Plan.Clear();
 
                             ctx.LastMTR.Clear();
                             if (ctx.DebugMTR) ctx.LastMTRDebug.Clear();
@@ -230,8 +162,8 @@ namespace FluidHTN
                 }
             }
 
-            if (_currentTask != null)
-                if (_currentTask is IPrimitiveTask task)
+            if (ctx.PlannerContext.CurrentTask != null)
+                if (ctx.PlannerContext.CurrentTask is IPrimitiveTask task)
                 {
                     if (task.Operator != null)
                     {
@@ -239,10 +171,10 @@ namespace FluidHTN
                             // If a condition failed, then the plan failed to progress! A replan is required.
                             if (condition.IsValid(ctx) == false)
                             {
-                                OnCurrentTaskExecutingConditionFailed?.Invoke(task, condition);
+                                ctx.PlannerContext.OnCurrentTaskExecutingConditionFailed?.Invoke(task, condition);
 
-                                _currentTask = null;
-                                _plan.Clear();
+                                ctx.PlannerContext.CurrentTask = null;
+                                ctx.PlannerContext.Plan.Clear();
 
                                 ctx.LastMTR.Clear();
                                 if (ctx.DebugMTR) ctx.LastMTRDebug.Clear();
@@ -254,25 +186,25 @@ namespace FluidHTN
                                 return;
                             }
 
-                        LastStatus = task.Operator.Update(ctx);
+                        ctx.PlannerContext.LastStatus = task.Operator.Update(ctx);
 
                         // If the operation finished successfully, we set task to null so that we dequeue the next task in the plan the following tick.
-                        if (LastStatus == TaskStatus.Success)
+                        if (ctx.PlannerContext.LastStatus == TaskStatus.Success)
                         {
-                            OnCurrentTaskCompletedSuccessfully?.Invoke(task);
+                            ctx.PlannerContext.OnCurrentTaskCompletedSuccessfully?.Invoke(task);
 
                             // All effects that is a result of running this task should be applied when the task is a success.
                             foreach (var effect in task.Effects)
                             {
                                 if (effect.Type == EffectType.PlanAndExecute)
                                 {
-                                    OnApplyEffect?.Invoke(effect);
+                                    ctx.PlannerContext.OnApplyEffect?.Invoke(effect);
                                     effect.Apply(ctx);
                                 }
                             }
 
-                            _currentTask = null;
-                            if (_plan.Count == 0)
+                            ctx.PlannerContext.CurrentTask = null;
+                            if (ctx.PlannerContext.Plan.Count == 0)
                             {
                                 ctx.LastMTR.Clear();
                                 if (ctx.DebugMTR) ctx.LastMTRDebug.Clear();
@@ -284,12 +216,12 @@ namespace FluidHTN
                         }
 
                         // If the operation failed to finish, we need to fail the entire plan, so that we will replan the next tick.
-                        else if (LastStatus == TaskStatus.Failure)
+                        else if (ctx.PlannerContext.LastStatus == TaskStatus.Failure)
                         {
-                            OnCurrentTaskFailed?.Invoke(task);
+                            ctx.PlannerContext.OnCurrentTaskFailed?.Invoke(task);
 
-                            _currentTask = null;
-                            _plan.Clear();
+                            ctx.PlannerContext.CurrentTask = null;
+                            ctx.PlannerContext.Plan.Clear();
 
                             ctx.LastMTR.Clear();
                             if (ctx.DebugMTR) ctx.LastMTRDebug.Clear();
@@ -302,22 +234,22 @@ namespace FluidHTN
                         // Otherwise the operation isn't done yet and need to continue.
                         else
                         {
-                            OnCurrentTaskContinues?.Invoke(task);
+                            ctx.PlannerContext.OnCurrentTaskContinues?.Invoke(task);
                         }
                     }
                     else
                     {
                         // This should not really happen if a domain is set up properly.
-                        _currentTask = null;
-                        LastStatus = TaskStatus.Failure;
+                        ctx.PlannerContext.CurrentTask = null;
+                        ctx.PlannerContext.LastStatus = TaskStatus.Failure;
                     }
                 }
 
-            if (_currentTask == null && _plan.Count == 0 && isTryingToReplacePlan == false &&
+            if (ctx.PlannerContext.CurrentTask == null && ctx.PlannerContext.Plan.Count == 0 && isTryingToReplacePlan == false &&
                 (decompositionStatus == DecompositionStatus.Failed ||
                  decompositionStatus == DecompositionStatus.Rejected))
             {
-                LastStatus = TaskStatus.Failure;
+                ctx.PlannerContext.LastStatus = TaskStatus.Failure;
             }
         }
 
@@ -325,33 +257,13 @@ namespace FluidHTN
 
         public void Reset(IContext ctx)
         {
-            _plan.Clear();
+            ctx.PlannerContext.Plan.Clear();
 
-            if (_currentTask != null && _currentTask is IPrimitiveTask task)
+            if (ctx.PlannerContext.CurrentTask != null && ctx.PlannerContext.CurrentTask is IPrimitiveTask task)
             {
                 task.Stop(ctx);
             }
-            _currentTask = null;
-        }
-
-        // ========================================================= GETTERS
-
-        /// <summary>
-        ///     Get the current plan. This is not a copy of the running plan, so treat it as read-only.
-        /// </summary>
-        /// <returns></returns>
-        public Queue<ITask> GetPlan()
-        {
-            return _plan;
-        }
-
-        /// <summary>
-        ///		Get the current task.
-        /// </summary>
-        /// <returns></returns>
-        public ITask GetCurrentTask()
-        {
-            return _currentTask;
+            ctx.PlannerContext.CurrentTask = null;
         }
     }
 }
