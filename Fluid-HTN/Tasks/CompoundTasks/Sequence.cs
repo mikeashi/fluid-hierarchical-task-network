@@ -4,15 +4,15 @@ using FluidHTN.PrimitiveTasks;
 
 namespace FluidHTN.Compounds
 {
-    public class Sequence : CompoundTask, IDecomposeAll
+    public class Sequence<TWorldStateEntry> : CompoundTask<TWorldStateEntry>, IDecomposeAll<TWorldStateEntry>
     {
         // ========================================================= FIELDS
 
-        protected readonly Queue<ITask> Plan = new Queue<ITask>();
+        protected readonly Queue<ITask<TWorldStateEntry>> Plan = new Queue<ITask<TWorldStateEntry>>();
 
         // ========================================================= VALIDITY
 
-        public override bool IsValid(IContext ctx)
+        public override bool IsValid(IContext<TWorldStateEntry> ctx)
         {
             // Check that our preconditions are valid first.
             if (base.IsValid(ctx) == false)
@@ -40,7 +40,7 @@ namespace FluidHTN.Compounds
         /// </summary>
         /// <param name="ctx"></param>
         /// <returns></returns>
-        protected override DecompositionStatus OnDecompose(IContext ctx, int startIndex, out Queue<ITask> result)
+        protected override DecompositionStatus OnDecompose(IContext<TWorldStateEntry> ctx, int startIndex, out Queue<ITask<TWorldStateEntry>> result)
         {
             Plan.Clear();
 
@@ -70,8 +70,8 @@ namespace FluidHTN.Compounds
             return result.Count == 0 ? DecompositionStatus.Failed : DecompositionStatus.Succeeded;
         }
 
-        protected override DecompositionStatus OnDecomposeTask(IContext ctx, ITask task, int taskIndex,
-            int[] oldStackDepth, out Queue<ITask> result)
+        protected override DecompositionStatus OnDecomposeTask(IContext<TWorldStateEntry> ctx, ITask<TWorldStateEntry> task, int taskIndex,
+            int[] oldStackDepth, out Queue<ITask<TWorldStateEntry>> result)
         {
             if (task.IsValid(ctx) == false)
             {
@@ -82,19 +82,19 @@ namespace FluidHTN.Compounds
                 return task.OnIsValidFailed(ctx);
             }
 
-            if (task is ICompoundTask compoundTask)
+            if (task is ICompoundTask<TWorldStateEntry> compoundTask)
             {
                 return OnDecomposeCompoundTask(ctx, compoundTask, taskIndex, oldStackDepth, out result);
             }
-            else if (task is IPrimitiveTask primitiveTask)
+            else if (task is IPrimitiveTask<TWorldStateEntry> primitiveTask)
             {
                 OnDecomposePrimitiveTask(ctx, primitiveTask, taskIndex, oldStackDepth, out result);
             }
-            else if (task is PausePlanTask)
+            else if (task is PausePlanTask<TWorldStateEntry>)
             {
                 if (ctx.LogDecomposition) Log(ctx, $"Sequence.OnDecomposeTask:Return partial plan at index {taskIndex}!", ConsoleColor.DarkBlue);
                 ctx.HasPausedPartialPlan = true;
-                ctx.PartialPlanQueue.Enqueue(new PartialPlanEntry()
+                ctx.PartialPlanQueue.Enqueue(new PartialPlanEntry<TWorldStateEntry>()
                 {
                     Task = this,
                     TaskIndex = taskIndex + 1,
@@ -103,7 +103,7 @@ namespace FluidHTN.Compounds
                 result = Plan;
                 return DecompositionStatus.Partial;
             }
-            else if (task is Slot slot)
+            else if (task is Slot<TWorldStateEntry> slot)
             {
                 return OnDecomposeSlot(ctx, slot, taskIndex, oldStackDepth, out result);
             }
@@ -114,8 +114,8 @@ namespace FluidHTN.Compounds
             return s;
         }
 
-        protected override void OnDecomposePrimitiveTask(IContext ctx, IPrimitiveTask task, int taskIndex,
-            int[] oldStackDepth, out Queue<ITask> result)
+        protected override void OnDecomposePrimitiveTask(IContext<TWorldStateEntry> ctx, IPrimitiveTask<TWorldStateEntry> task, int taskIndex,
+            int[] oldStackDepth, out Queue<ITask<TWorldStateEntry>> result)
         {
             // We don't add MTR tracking on sequences for primary sub-tasks, since they will always be included, so they're irrelevant to MTR tracking.
 
@@ -125,8 +125,8 @@ namespace FluidHTN.Compounds
             result = Plan;
         }
 
-        protected override DecompositionStatus OnDecomposeCompoundTask(IContext ctx, ICompoundTask task,
-            int taskIndex, int[] oldStackDepth, out Queue<ITask> result)
+        protected override DecompositionStatus OnDecomposeCompoundTask(IContext<TWorldStateEntry> ctx, ICompoundTask<TWorldStateEntry> task,
+            int taskIndex, int[] oldStackDepth, out Queue<ITask<TWorldStateEntry>> result)
         {
             var status = task.Decompose(ctx, 0, out var subPlan);
 
@@ -165,7 +165,7 @@ namespace FluidHTN.Compounds
                 if (ctx.LogDecomposition) Log(ctx, $"Sequence.OnDecomposeCompoundTask:Return partial plan at index {taskIndex}!", ConsoleColor.DarkBlue);
                 if (taskIndex < Subtasks.Count - 1)
                 {
-                    ctx.PartialPlanQueue.Enqueue(new PartialPlanEntry()
+                    ctx.PartialPlanQueue.Enqueue(new PartialPlanEntry<TWorldStateEntry>()
                     {
                         Task = this,
                         TaskIndex = taskIndex + 1,
@@ -181,8 +181,8 @@ namespace FluidHTN.Compounds
             return DecompositionStatus.Succeeded;
         }
 
-        protected override DecompositionStatus OnDecomposeSlot(IContext ctx, Slot task,
-            int taskIndex, int[] oldStackDepth, out Queue<ITask> result)
+        protected override DecompositionStatus OnDecomposeSlot(IContext<TWorldStateEntry> ctx, Slot<TWorldStateEntry> task,
+            int taskIndex, int[] oldStackDepth, out Queue<ITask<TWorldStateEntry>> result)
         {
             var status = task.Decompose(ctx, 0, out var subPlan);
 
@@ -221,7 +221,7 @@ namespace FluidHTN.Compounds
                 if (ctx.LogDecomposition) Log(ctx, $"Sequence.OnDecomposeSlot:Return partial plan at index {taskIndex}!", ConsoleColor.DarkBlue);
                 if (taskIndex < Subtasks.Count - 1)
                 {
-                    ctx.PartialPlanQueue.Enqueue(new PartialPlanEntry()
+                    ctx.PartialPlanQueue.Enqueue(new PartialPlanEntry<TWorldStateEntry>()
                     {
                         Task = this,
                         TaskIndex = taskIndex + 1,
