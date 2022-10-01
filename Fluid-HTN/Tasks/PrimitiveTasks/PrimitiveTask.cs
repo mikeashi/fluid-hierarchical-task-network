@@ -6,39 +6,39 @@ using FluidHTN.Operators;
 
 namespace FluidHTN.PrimitiveTasks
 {
-    public class PrimitiveTask : IPrimitiveTask
+    public class PrimitiveTask<TWorldStateEntry> : IPrimitiveTask<TWorldStateEntry>
     {
         // ========================================================= PROPERTIES
 
         public string Name { get; set; }
-        public ICompoundTask Parent { get; set; }
-        public List<ICondition> Conditions { get; } = new List<ICondition>();
-        public List<ICondition> ExecutingConditions { get; } = new List<ICondition>();
-        public IOperator Operator { get; private set; }
-        public List<IEffect> Effects { get; } = new List<IEffect>();
+        public ICompoundTask<TWorldStateEntry> Parent { get; set; }
+        public List<ICondition<TWorldStateEntry>> Conditions { get; } = new List<ICondition<TWorldStateEntry>>();
+        public List<ICondition<TWorldStateEntry>> ExecutingConditions { get; } = new List<ICondition<TWorldStateEntry>>();
+        public IOperator<TWorldStateEntry> Operator { get; private set; }
+        public List<IEffect<TWorldStateEntry>> Effects { get; } = new List<IEffect<TWorldStateEntry>>();
 
         // ========================================================= VALIDITY
 
-        public DecompositionStatus OnIsValidFailed(IContext ctx)
+        public DecompositionStatus OnIsValidFailed(IContext<TWorldStateEntry> ctx)
         {
             return DecompositionStatus.Failed;
         }
 
         // ========================================================= ADDERS
 
-        public ITask AddCondition(ICondition condition)
+        public ITask<TWorldStateEntry> AddCondition(ICondition<TWorldStateEntry> condition)
         {
             Conditions.Add(condition);
             return this;
         }
 
-        public ITask AddExecutingCondition(ICondition condition)
+        public ITask<TWorldStateEntry> AddExecutingCondition(ICondition<TWorldStateEntry> condition)
         {
             ExecutingConditions.Add(condition);
             return this;
         }
 
-        public ITask AddEffect(IEffect effect)
+        public ITask<TWorldStateEntry> AddEffect(IEffect<TWorldStateEntry> effect)
         {
             Effects.Add(effect);
             return this;
@@ -46,7 +46,7 @@ namespace FluidHTN.PrimitiveTasks
 
         // ========================================================= SETTERS
 
-        public void SetOperator(IOperator action)
+        public void SetOperator(IOperator<TWorldStateEntry> action)
         {
             if (Operator != null) throw new Exception("A Primitive Task can only contain a single Operator!");
 
@@ -55,7 +55,7 @@ namespace FluidHTN.PrimitiveTasks
 
         // ========================================================= FUNCTIONALITY
 
-        public void ApplyEffects(IContext ctx)
+        public void ApplyEffects(IContext<TWorldStateEntry> ctx)
         {
             if (ctx.ContextState == ContextState.Planning)
             {
@@ -70,14 +70,14 @@ namespace FluidHTN.PrimitiveTasks
             if (ctx.LogDecomposition) ctx.CurrentDecompositionDepth--;
         }
 
-        public void Stop(IContext ctx)
+        public void Stop(IContext<TWorldStateEntry> ctx)
         {
             Operator?.Stop(ctx);
         }
 
         // ========================================================= VALIDITY
 
-        public bool IsValid(IContext ctx)
+        public bool IsValid(IContext<TWorldStateEntry> ctx)
         {
             if (ctx.LogDecomposition) Log(ctx, $"PrimitiveTask.IsValid check");
             foreach (var condition in Conditions)
@@ -99,7 +99,7 @@ namespace FluidHTN.PrimitiveTasks
 
         // ========================================================= LOGGING
 
-        protected virtual void Log(IContext ctx, string description, ConsoleColor color = ConsoleColor.White)
+        protected virtual void Log(IContext<TWorldStateEntry> ctx, string description, ConsoleColor color = ConsoleColor.White)
         {
             ctx.Log(Name, description, ctx.CurrentDecompositionDepth+1, this, color);
         }
