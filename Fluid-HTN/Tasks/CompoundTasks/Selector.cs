@@ -134,9 +134,7 @@ namespace FluidHTN.Compounds
 
             if (task is IPrimitiveTask<TWorldStateEntry> primitiveTask)
             {
-                if (ctx.LogDecomposition) Log(ctx, $"Selector.OnDecomposeTask:Pushed {primitiveTask.Name} to plan!", ConsoleColor.Blue);
-                primitiveTask.ApplyEffects(ctx);
-                Plan.Enqueue(task);
+                OnDecomposePrimitiveTask(ctx, primitiveTask, taskIndex, null, out result);
             }
 
             if (task is Slot<TWorldStateEntry> slot)
@@ -149,6 +147,20 @@ namespace FluidHTN.Compounds
 
             if (ctx.LogDecomposition) Log(ctx, $"Selector.OnDecomposeTask:{status}!", status == DecompositionStatus.Succeeded ? ConsoleColor.Green : ConsoleColor.Red);
             return status;
+        }
+
+        protected override void OnDecomposePrimitiveTask(IContext<TWorldStateEntry> ctx, IPrimitiveTask<TWorldStateEntry> task, int taskIndex,
+            int[] oldStackDepth, out Queue<ITask<TWorldStateEntry>> result)
+        {
+            // We need to record the task index before we decompose the task,
+            // so that the traversal record is set up in the right order.
+            ctx.MethodTraversalRecord.Add(taskIndex);
+            if (ctx.DebugMTR) ctx.MTRDebug.Add(task.Name);
+
+            if (ctx.LogDecomposition) Log(ctx, $"Selector.OnDecomposeTask:Pushed {task.Name} to plan!", ConsoleColor.Blue);
+            task.ApplyEffects(ctx);
+            Plan.Enqueue(task);
+            result = Plan;
         }
 
         protected override DecompositionStatus OnDecomposeCompoundTask(IContext<TWorldStateEntry> ctx, ICompoundTask<TWorldStateEntry> task, int taskIndex,
