@@ -13,7 +13,7 @@ namespace FluidHTN
         public ICompoundTask<TWorldStateEntry> Parent { get; set; }
         public List<ICondition<TWorldStateEntry>> Conditions { get; } = null;
         public List<IEffect<TWorldStateEntry>> Effects { get; } = null;
-        public TaskStatus LastStatus { get; }
+
 
         // ========================================================= VALIDITY
 

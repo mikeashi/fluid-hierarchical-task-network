@@ -14,7 +14,6 @@ namespace FluidHTN.PrimitiveTasks
         public ICompoundTask<TWorldStateEntry> Parent { get; set; }
         public List<ICondition<TWorldStateEntry>> Conditions { get; } = new List<ICondition<TWorldStateEntry>>();
         public List<ICondition<TWorldStateEntry>> ExecutingConditions { get; } = new List<ICondition<TWorldStateEntry>>();
-        public TaskStatus LastStatus { get; }
         public IOperator<TWorldStateEntry> Operator { get; private set; }
         public List<IEffect<TWorldStateEntry>> Effects { get; } = new List<IEffect<TWorldStateEntry>>();
 

@@ -20,7 +20,7 @@ A simple HTN planner based around the principles of the Builder pattern, inspire
 * Uses a Factory interface internally to create and free arrays/collections/objects, allowing the user to add pooling, or other memory management schemes.
 * Decomposition logging, for debugging.
 * Comes with Unity Package Module definitions for seamless integration into Unity projects.
-* 143 unit tests.
+* 145 unit tests.
 
 ## Support
 Join the [discord channel](https://discord.gg/MuccnAz) to share your experience and get support on the usage of Fluid HTN.
@@ -48,7 +48,7 @@ Operators are the logic operation a primitive task should perform during plan ex
 Effects apply world state change during planning, and optionally during execution. They can only be applied to primitive tasks. There are three types of effects. 
 * PlanOnly effects temporarily change the world state during planning, used as a prediction about the future. Its change on the world state is removed before plan execution. This can be useful when we need other systems to set the world state during execution.
 * PlanAndExecute effects work just like PlanOnly effects, only that during execution, when the task they represent complete its execution successfully, the effect is re-applied. This is useful in the cases where you don't have other systems to set the world state during execution.
-* Permanent effects are applied during planning, but not removed from the world state before execution. This can be very useful when there's some state we change only during planning, e.g. do this thing three times then do this other thing.
+* Permanent effects are applied during planning, but not removed from the world state before execution. This can be very useful when there's some state we change only during planning, e.g. do this thing three times then do this other thing. It can also be useful when we want to update world state in our runtime code, where we definitely want our changes to be permanent.
 ### Coding with Fluid HTN
 First we need to set up a WorldState enum and a Context. This is the blackboard the planner uses to access state during its planning procedure.
 ```C#
@@ -153,7 +153,7 @@ var ctx = new MyContext();
 var planner = new Planner();
 ctx.Init();
 ```
-Next, let's tick the planner until the Done flag in our context is set to false.
+Next, let's tick the planner until the Done flag in our context is set to true.
 ```C#
 while (!ctx.Done)
 {
@@ -261,7 +261,7 @@ public class IfEnemyCondition : ICondition
 {
     public string Name { get; } = "If Enemy";
     
-    public bool IsValid(ICondition ctx)
+    public bool IsValid(IContext ctx)
     {
         if(ctx is MyContext c)
         {
@@ -434,7 +434,62 @@ public DB RandomSelect(string name)
     return CompoundTask<RandomSelector>(name);
 }
 ```
-#### Custom factory
+#### Tips for domain builder usage
+We are not limited to only use the domain builder to expose simple tasks, conditions or effects, we can build entire sub-domain-like functions in here too, with the advantage of auto-indentation from scope-brackets. What we lose is the ability to add conditions and effects outside of the function, so its going to solve very specialized sub-domains, but sometimes that's exactly what we need, and it does clean up the domain definition, making them more readable. Consider this modification to our domain definition above:
+```C#
+var domain = new MyDomainBuilder("Trunk Thumper")
+    .AttackEnemySequence()
+    .PatrolNextBridgeSequence()
+    .Build();
+```
+Let's extend out MyDomainBuild with these new sequences.
+```C#
+public DB AttackEnemySequence()
+{
+    Sequence("Attack enemy");
+    {
+        IfEnemy();
+        MoveTo(Location.Enemy, Speed.Sprint);
+        {
+            SetLocation(Location.Enemy);
+            SetIsTired();
+        }
+        End();
+        TrunkSlam();
+        {
+            IfLocation(Location.Enemy);
+        }
+        End();
+    }
+    End();
+    return this;
+}
+
+public DB PatrolNextBridgeSequence()
+{
+    Sequence("Patrol next bridge");
+    {
+        FindBridge();
+        {
+        }
+        End();
+        MoveTo(Location.Bridge, Speed.Walk);
+        {
+            SetLocation(Location.Bridge);
+        }
+        End();
+        CheckBridge();
+        {
+            IfLocation(Location.Bridge);
+            SetBored();
+        }
+        End();
+    }
+    End();
+    return this;
+}
+```
+### Custom factory
 When we implemented MyContext earlier, you might have noticed that we did an override to implement Factory, and set it to DefaultFactory. We also sent a DefaultFactory to BaseDomainBuilder when we looked at extending domain builders. This is where you're free to implement your own factory methods, like PooledFactory, and have Fluid HTN use it via the IFactory interface. DefaultFactory will just do normal new operations and set the collection reference to null when the Free* API is called. The Create* and Free* API of the IFactory is used internally with the support of pooling in mind, but we leave it up to the user how they prefer to do this.
 
 ### Debugging the planner
@@ -566,6 +621,7 @@ Example projects have been pulled into their own repositories, as not to clutter
 * [Fluid Goap Coffai](https://github.com/ptrefall/fluid-goap-coffai)
 * [Fluid Smart Objects](https://github.com/ptrefall/fluid-smart-objects)
 * [Fluid Roguelike](https://github.com/ptrefall/fluid_roguelike) (requires Unity, work in progress)
+* [Fluid Fortress](https://github.com/ptrefall/FluidFortress) (requires Unity, rushed Jam game)
 
 ## TODO
 Review the [Projects area](https://github.com/ptrefall/fluid-hierarchical-task-network/projects) of this project to get an overview of what's on the todo-list of this project, and which new features are in progress.
