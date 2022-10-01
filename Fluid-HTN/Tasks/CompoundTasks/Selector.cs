@@ -32,7 +32,7 @@ namespace FluidHTN.Compounds
             return true;
         }
 
-        private bool BeatsLastMTR(IContext ctx, int taskIndex, int currentDecompositionIndex)
+        private bool BeatsLastMTR(IContext<TWorldStateEntry> ctx, int taskIndex, int currentDecompositionIndex)
         {
             // If the last plan's traversal record for this decomposition layer 
             // has a smaller index than the current task index we're about to
